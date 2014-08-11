@@ -1,0 +1,1 @@
+java -cp \Java\jsoup-1.7.3.jar;.\bin LogosPrep %1

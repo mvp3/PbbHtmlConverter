@@ -1,0 +1,1 @@
+java -cp .\bin SwitchWS %1
