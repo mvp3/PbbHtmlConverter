@@ -42,7 +42,7 @@ public class LogosPrep {
 	 */
 	public static void main(String[] args) throws IOException 
 	{
-
+		System.out.println("Starting PBB HTML parser version 1.2");
     	LogosPrep lp = new LogosPrep();
 	    if ( args[0].endsWith( ".html" ) ) {
 	    	lp.prepareFile( args[0] );
