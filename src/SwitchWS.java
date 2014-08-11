@@ -127,10 +127,14 @@ public class SwitchWS
         }
         /*
          * If a "Linked" directory does not contain a JavaScript file, 
-         * then copy the custom JS file. 
+         * then (a) create an empty file called "footnote_[original].js"
+         * and (b) copy the custom JS file to "footnote.js". 
          */
         if ( file.getName().equals("Linked") && nojs ) {
-        	this.copyCustomJS( file.toPath() );
+            File ef = new File( file, "footnote_[original].js" );
+            ef.createNewFile();
+            File nf = new File( file, "footnote.js" );
+        	this.copyCustomJS( nf.toPath() );
         }
       }
     } else
