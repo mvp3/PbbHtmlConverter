@@ -27,6 +27,7 @@ public class SwitchWS
   public static void main( String[] args ) throws IOException
   {
     boolean raw = false;
+    boolean verbose = false;
     if ( args.length > 0 ) {
     	if ( args[0].equals( "html" ) ) {
     		raw = true;
@@ -36,16 +37,22 @@ public class SwitchWS
             System.out.println("Invalid option. Options: sw html [or] sw standard");
             return;
     	}
+        if ( args.length > 1 ) {
+        	if ( args[1].equals( "-v" ) ) {
+        		verbose = true;
+        	}
+        }
+    	
     } else {
         System.out.println("Invalid option. Options: sw html [or] sw standard");
         return;
     }
     SwitchWS s = new SwitchWS(new File("C:\\Books\\WORDsearch\\Library"));
-    s.processFolder( s.root, raw );
+    s.processFolder( s.root, raw, verbose );
     System.out.println("Done.");
   }
   
-  private void processFolder( File file, boolean raw ) throws IOException
+  private void processFolder( File file, boolean raw, boolean verbose ) throws IOException
   {
     if ( cancel ) return;
     if ( file.isDirectory() )
@@ -58,7 +65,7 @@ public class SwitchWS
       }
       */
       File afile[] = file.listFiles();
-      System.out.println( "Reading directory: " + file.getName() );
+      if ( verbose ) System.out.println( "Reading directory: " + file.getName() );
       if ( afile.length > 0 )
       {
         for ( int i = 0; i < afile.length; i++ )
@@ -66,7 +73,7 @@ public class SwitchWS
           if ( afile[i].isDirectory() )
           {
             //System.out.println( "Directory: " + afile[i].getName() );
-            this.processFolder( afile[i], raw );
+            this.processFolder( afile[i], raw, verbose );
           } else if ( raw && afile[i].getName().equals( "footnote.js" ) )
           {
             //System.out.println( "File: " + afile[i].getName() );

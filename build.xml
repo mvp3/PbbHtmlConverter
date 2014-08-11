@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+  <project name="PbbHtmlConverter.makejar" default="makejar" basedir=".">
+
+  	<property name="jar"          location="PbbHtmlConverter.jar"/>
+    <property name="dist"         location="C:\Java"/>
+  	
+  <target name ="makejar" description="Create a jar for the PbbHtmlConverter project">
+  	
+    <echo message="Building: ${jar}"/>
+    <jar jarfile="${jar}" basedir="bin">
+      <manifest>
+        <!-- Who is building this jar? -->
+        <attribute name="Built-By" value="${user.name}"/>
+        <attribute name="Built-Date" value="${TODAY}"/>
+        <!-- Information about the program itself -->
+        <attribute name="Implementation-Vendor" value="M.V. Pereira"/>
+        <attribute name="Implementation-Title" value="PbbHtmlConverter"/>
+        <attribute name="Application-Version" value="${version.num}"/>
+        <attribute name="Build-JRE" value="${java.specification.version}"/>
+        <attribute name="Product-Name" value="PbbHtmlConverter"/>
+        <attribute name="Class-Path" value="."/>
+        <!-- details -->
+      </manifest>
+    </jar>
+    <echo message="Build complete!"/>
+    <copy file="${jar}" todir="${dist}" />
+
+  </target>
+  </project>
