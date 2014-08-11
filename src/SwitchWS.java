@@ -26,13 +26,16 @@ public class SwitchWS
   
   public static void main( String[] args ) throws IOException
   {
-    boolean raw = false;
+    boolean html = false;
     boolean verbose = false;
     if ( args.length > 0 ) {
-    	if ( args[0].equals( "html" ) ) {
-    		raw = true;
-    	} else if ( args[0].equals( "standard" ) ) {
-    		raw = false;
+    	if ( args[0].equals( "html" ) || args[0].equals( "raw" ) || args[0].equals( "h" ) ) {
+    		html = true;
+    	} else if ( args[0].equals( "standard" ) 	||
+    				args[0].equals( "std" ) 		||
+    				args[0].equals( "reset" ) 		||
+    				args[0].equals( "s" ) ) {
+    		html = false;
     	} else {
             System.out.println("Invalid option. Options: sw html [or] sw standard");
             return;
@@ -48,11 +51,11 @@ public class SwitchWS
         return;
     }
     SwitchWS s = new SwitchWS(new File("C:\\Books\\WORDsearch\\Library"));
-    s.processFolder( s.root, raw, verbose );
+    s.processFolder( s.root, html, verbose );
     System.out.println("Done.");
   }
   
-  private void processFolder( File file, boolean raw, boolean verbose ) throws IOException
+  private void processFolder( File file, boolean html, boolean verbose ) throws IOException
   {
     if ( cancel ) return;
     if ( file.isDirectory() )
@@ -68,15 +71,18 @@ public class SwitchWS
       if ( verbose ) System.out.println( "Reading directory: " + file.getName() );
       if ( afile.length > 0 )
       {
+    	boolean nojs = true;
         for ( int i = 0; i < afile.length; i++ )
         {
           if ( afile[i].isDirectory() )
           {
             //System.out.println( "Directory: " + afile[i].getName() );
-            this.processFolder( afile[i], raw, verbose );
-          } else if ( raw && afile[i].getName().equals( "footnote.js" ) )
+            this.processFolder( afile[i], html, verbose );
+          }
+          else if ( html && afile[i].getName().equals( "footnote.js" ) )
           {
             //System.out.println( "File: " + afile[i].getName() );
+        	nojs = false;
             Path path = afile[i].toPath();
             String fn = afile[i].getAbsolutePath();
             File nf = new File( fn.substring( 0, fn.lastIndexOf( '.' ) ) + "_[original].js" );
@@ -97,8 +103,10 @@ public class SwitchWS
               }
               this.copyCustomJS( path );
             }
-          } else if ( !raw && afile[i].getName().equals( "footnote_[original].js" ) )
+          }
+          else if ( !html && afile[i].getName().equals( "footnote_[original].js" ) )
           {
+          	nojs = false;
             File nf = new File( afile[i].getParentFile(), "footnote.js" );
             if ( nf.exists() ) nf.delete();
             boolean r = afile[i].renameTo( nf );
@@ -107,10 +115,22 @@ public class SwitchWS
               System.out.println( "FAILED TO RESTORE: " + afile[i].getAbsolutePath() );
               return;
             }
-          } else
+          }
+          else if ( afile[i].getName().endsWith(".js") )
+          {
+        	nojs = false;
+          }
+          else
           {
             // Ignore other files
           }
+        }
+        /*
+         * If a "Linked" directory does not contain a JavaScript file, 
+         * then copy the custom JS file. 
+         */
+        if ( file.getName().equals("Linked") && nojs ) {
+        	this.copyCustomJS( file.toPath() );
         }
       }
     } else
@@ -121,7 +141,7 @@ public class SwitchWS
 
   private void copyCustomJS( Path path ) throws IOException
   {
-    System.out.println("copying: " + this.customJS.toPath() + " to " + path);
+    System.out.println("Copying custom JS to: " + path);
     Files.copy( this.customJS.toPath(), path );
   }
 }
