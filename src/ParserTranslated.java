@@ -27,12 +27,12 @@ import org.jsoup.select.Elements;
  *
  * Created on July 28, 2014
  */
-public class LogosPrep {
+public class ParserTranslated {
 
 	/**
 	 * 
 	 */
-	public LogosPrep() 
+	public ParserTranslated() 
 	{
 	}
 
@@ -42,8 +42,8 @@ public class LogosPrep {
 	 */
 	public static void main(String[] args) throws IOException 
 	{
-		System.out.println("Starting PBB HTML parser version 1.2");
-    	LogosPrep lp = new LogosPrep();
+		System.out.println("Starting PBB parser of translated HTML version 1.0");
+    	ParserTranslated lp = new ParserTranslated();
 	    if ( args[0].endsWith( ".html" ) ) {
 	    	lp.prepareFile( args[0] );
 	      } else {
@@ -61,20 +61,11 @@ public class LogosPrep {
 		File input = new File( file );
 		Document doc = Jsoup.parse(input, "UTF-8");
 		
-		/*
-		 * Check for a specific type of tag that marks commentary verse
-		 * For 21st Century Biblical Commentary Series:
-		 * FONT-SIZE: 0.95em; FONT-STYLE: italic; TEXT-ALIGN: center; MARGIN: 15px 10%; LINE-HEIGHT: 1.4em; TEXT-INDENT: 0px
-		 * 
-		 * For Spurgeon (sermon heading):
-		 * MARGIN-BOTTOM: 0px; FONT-SIZE: 1.5em; FONT-WEIGHT: bold; TEXT-ALIGN: center; MARGIN-TOP: 0.5em; LINE-HEIGHT: normal 
-		 */
 		int btags = 0;
-		Elements ps = null;
 		Elements links = null;
 		
 		/*
-		 * Parse raw HTML output from WS
+		 * Parse translated HTML output from WS
 		 */
 		ArrayList<String> missed = new ArrayList<String>();
 		Elements spans = doc.getElementsByTag("span");
@@ -119,7 +110,29 @@ public class LogosPrep {
 		if (btags > 0 ) System.out.println(btags + " commentary tags inserted.");
         if ( missed.size() > 0 ) System.out.println("  SPAN classes not handled: " + missed.toString() );
 		
+
 		btags = 0;
+		Elements paragraphs = doc.getElementsByTag("p");
+	    for ( Element p : paragraphs )
+	    {
+	    	if ( p.attr("style").startsWith("FONT-SIZE: 0.95em") ) {
+	    		links = p.getElementsByTag("a");
+	    		if ( links != null && links.size() == 1 ) {
+					Element a = links.get(0);
+					String t = this.getBibleRef(a.attr("href"));
+					if ( this.isBibleRef(t) ) {
+						a.replaceWith(new TextNode("[[@Bible:" + t + "]]" + t, ""));
+				    	btags++;
+					} else {
+						System.out.println("  (WARNING: " + t + " not a Bible reference)");
+					}
+	    		}
+	    	}
+	    }
+	    if (btags > 0 ) System.out.println( btags + " references tagged as Bible milestones.");
+
+        
+        btags = 0;
 		Elements headers = doc.getElementsByTag("h1");
 	    for ( Element header : headers )
 	    {
@@ -140,36 +153,6 @@ public class LogosPrep {
         if (btags > 0 ) System.out.println( btags + " (H2) headings tagged.");
 
         
-        /*
-         * Check for IMG base URL
-         */
-        btags = 0;
-        String imgpath = "";
-        Elements inputs = doc.getElementsByTag("input");
-        for ( Element inp : inputs )
-        {
-          if ( inp.attr( "name" ).equalsIgnoreCase( "imgdata" ) && inp.attr( "value" ).length() > 0 ) {
-            imgpath = inp.attr( "value" );
-            System.out.println("IMG: " + imgpath);
-            imgpath = imgpath.substring( 0, imgpath.indexOf( "Linked" ) );
-            break;
-          }
-        }
-        
-        if ( imgpath == null ) {
-          System.out.println("Image base path is NULL!");
-        } else {
-          Elements imgs = doc.getElementsByTag("img");
-          for ( Element img : imgs )
-          {
-            String rel = img.attr( "src" );
-            img.attr( "src", imgpath + rel );
-            System.out.println("   IMAGE: " + img.attr( "src" ));
-            btags++;
-          }
-          if (btags > 0 ) System.out.println( btags + " images converted.");
-        }
-
         /*
 		 * Check all links and convert them 
 		 */
