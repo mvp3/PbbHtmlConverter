@@ -42,18 +42,18 @@ public class ParserTranslated {
 	 */
 	public static void main(String[] args) throws IOException 
 	{
-		System.out.println("Starting PBB parser of translated HTML version 1.0");
+		System.out.println("Starting PBB parser of translated HTML version 1.1");
     	ParserTranslated lp = new ParserTranslated();
 	    if ( args[0].endsWith( ".html" ) ) {
 	    	lp.prepareFile( args[0] );
-	      } else {
+	    } else {
 	        File d = new File( args[0] );
 	        if (!d.isDirectory()) System.err.println("'" + args[0] + "' is not a directory.");
 	        String[] subs = d.list();
 	        for (int i = 0; i < subs.length; i++) {
 	          if ( subs[i].endsWith( ".html" ) ) lp.prepareFile( d.getPath() + File.separator + subs[i] );
 	        }
-	      }
+	    }
 	}
 
 	private void prepareFile( String file ) throws IOException
@@ -63,6 +63,119 @@ public class ParserTranslated {
 		
 		int btags = 0;
 		Elements links = null;
+
+	    /*
+		 * Parse headings first
+		 */
+        btags = 0;
+		Elements headers = doc.getElementsByTag("h5");
+	    for ( Element header : headers )
+	    {
+	    	header.tagName("h6");
+	    	btags++;
+	    }
+	    if (btags > 0 ) System.out.println( btags + " (H5->6) headings tagged.");
+
+        btags = 0;
+		headers = doc.getElementsByTag("h4");
+	    for ( Element header : headers )
+	    {
+	    	header.tagName("h5");
+	    	btags++;
+	    }
+	    if (btags > 0 ) System.out.println( btags + " (H4->5) headings tagged.");
+
+        btags = 0;
+		headers = doc.getElementsByTag("h3");
+	    for ( Element header : headers )
+	    {
+	    	header.tagName("h4");
+	    	btags++;
+	    }
+	    if (btags > 0 ) System.out.println( btags + " (H3->4) headings tagged.");
+
+
+        btags = 0;
+        headers = doc.getElementsByTag("h2");
+        for ( Element header : headers )
+        {
+    		String t = header.text();
+    		header.tagName("h3");
+        	
+	    	if (t.equalsIgnoreCase("preface") ||
+		    	t.equalsIgnoreCase("introduction") ) {
+	    		// Skip
+	    	} else {
+	    		if ( this.isBibleRef(t) ) {
+					header.before(new TextNode("[[@Bible:" + t + "]]", ""));
+	    		}
+		    	header.before( "{{field-on:heading}}" );
+		    	header.after( "{{field-off:heading}}" );
+	        	btags++;
+	    	}
+        }
+        if (btags > 0 ) System.out.println( btags + " (H2->3) headings tagged.");
+
+        btags = 0;
+		headers = doc.getElementsByTag("h1");
+	    for ( Element header : headers )
+	    {
+	    	if (header.text().equalsIgnoreCase("preface") ||
+	    		header.text().equalsIgnoreCase("introduction") ) {
+	    		header.tagName("h3");
+	    	} else {
+		    	header.before( "{{field-on:heading}}" );
+		    	header.after( "{{field-off:heading}}" );
+	    		header.tagName("h2");
+		    	btags++;
+	    	}
+	    }
+	    if (btags > 0 ) System.out.println( btags + " (H1->2) headings tagged.");
+		
+	    /*
+	     * Attempt to Tag chapter headings that correspond to Bible chapters
+	     */
+		btags = 0;
+		String book = "";
+		Elements elements = doc.getAllElements();
+	    for ( int i = 0; i < elements.size(); i++ )
+	    {
+	    	Element e = elements.get(i);
+	    	if ( e.tagName().equalsIgnoreCase("p") && e.attr("style").startsWith("FONT-SIZE: 2.1em") ) {
+	    		book = e.text();
+	    		Element h1 = new Element(Tag.valueOf("h1"), "");
+	    		h1.text(book);
+	    		e.replaceWith(h1);
+	    	} else if ( e.tagName().equalsIgnoreCase("h2") ) {
+	    		String ct = "Chapter ";
+	    		String t = e.text();
+	    		if ( t.startsWith(ct) ) {
+	    			Element ne = elements.get(i + 1);
+	    			if ( ne.tagName().equalsIgnoreCase("p") && ne.attr("style").equals("FONT-SIZE: 0.95em; FONT-WEIGHT: bold; TEXT-ALIGN: center; MARGIN: 10px 10%; LINE-HEIGHT: normal; TEXT-INDENT: 0px") ) {
+	    				// Ignore
+	    			} else {
+		    			int ei = t.indexOf('.');
+		    			if ( ei == -1 ) ei = t.indexOf("<BR>");
+		    			if ( ei == -1 ) ei = t.length();
+		    			String cn = t.substring(ct.length(), ei);
+		    			if ( cn != null && !cn.isEmpty() ) {
+		    				try {
+		    					if ( cn.indexOf(':') > 0 && cn.indexOf(':') < 4 ) {
+		    						// Ignore if the string contains a colon, assuming it is a Bible reference
+		    					} else {
+			    					cn = EnglishNumber.getNumberString(cn);
+		    					}
+			    				e.before(new TextNode("[[@Bible:" + book + " " + cn + "]]", ""));
+			    				btags++;
+		    				} catch ( NumberFormatException nfe ) {
+		    					// Ignore
+		    				}
+		    			}
+	    			}
+	    		}
+	    	}
+	    }
+	    if (btags > 0 ) System.out.println( btags + " chapters tagged as Bible milestones.");
 		
 		/*
 		 * Parse translated HTML output from WS
@@ -80,16 +193,14 @@ public class ParserTranslated {
 			  span.replaceWith(new TextNode("{{@footnote:" + txt + "}}", ""));
 				
             } else if ( span.attr("class").equalsIgnoreCase("trans-grc") || 
-                        span.attr("class").equalsIgnoreCase("trans-heb") ||
-                        span.attr("class").equalsIgnoreCase("trans-arc") ||
-                        span.attr("class").equalsIgnoreCase("gloss")     ||
-                        span.attr("class").equalsIgnoreCase("lang-heb")  ||
-                        span.attr("class").equalsIgnoreCase("lang-lat")  ||
-                        span.attr("class").equalsIgnoreCase("lang-ger") ) {
-              String txt = span.text();
-              Element e = new Element(Tag.valueOf("i"), "");
-              e.text(txt);
-              span.replaceWith(e);
+	                    span.attr("class").equalsIgnoreCase("trans-heb") ||
+	                    span.attr("class").startsWith("trans-") 		 ||
+	                    span.attr("class").equalsIgnoreCase("gloss")     ||
+	                    span.attr("class").startsWith("lang-") ) {
+	          String txt = span.text();
+	          Element e = new Element(Tag.valueOf("i"), "");
+	          e.text(txt);
+	          span.replaceWith(e);
               
             } else if ( span.attr("class").equalsIgnoreCase("smcaps") ) {
               span.attr( "class", "" );
@@ -115,45 +226,41 @@ public class ParserTranslated {
 		Elements paragraphs = doc.getElementsByTag("p");
 	    for ( Element p : paragraphs )
 	    {
-	    	if ( p.attr("style").startsWith("FONT-SIZE: 0.95em") ) {
+	    	if ( p.attr("style").equals("FONT-SIZE: 0.95em; FONT-WEIGHT: bold; TEXT-ALIGN: center; MARGIN: 10px 10%; LINE-HEIGHT: normal; TEXT-INDENT: 0px") ) {
 	    		links = p.getElementsByTag("a");
-	    		if ( links != null && links.size() == 1 ) {
+	    		if ( links != null && links.size() > 0 ) {
 					Element a = links.get(0);
 					String t = this.getBibleRef(a.attr("href"));
 					if ( this.isBibleRef(t) ) {
-						a.replaceWith(new TextNode("[[@Bible:" + t + "]]" + t, ""));
+						a.replaceWith(new TextNode("[[@Bible:" + t + "]] " + a.text(), ""));
 				    	btags++;
 					} else {
-						System.out.println("  (WARNING: " + t + " not a Bible reference)");
+						System.out.println("  (WARNING: '" + t + "' not a Bible reference)");
 					}
 	    		}
 	    	}
 	    }
 	    if (btags > 0 ) System.out.println( btags + " references tagged as Bible milestones.");
-
-        
-        btags = 0;
-		Elements headers = doc.getElementsByTag("h1");
-	    for ( Element header : headers )
-	    {
-	      header.before( "{{field-on:heading}}" );
-	      header.after( "{{field-off:heading}}" );
-	      btags++;
-	    }
-	    if (btags > 0 ) System.out.println( btags + " (H1) headings tagged.");
-		
-        btags = 0;
-        headers = doc.getElementsByTag("h2");
-        for ( Element header : headers )
-        {
-          header.before( "{{field-on:heading}}" );
-          header.after( "{{field-off:heading}}" );
-          btags++;
-        }
-        if (btags > 0 ) System.out.println( btags + " (H2) headings tagged.");
-
         
         /*
+		 * Convert all Images 
+		 */
+	    btags = 0;
+		Elements imgs = doc.getElementsByTag("img");
+		for (Element img : imgs) {
+			if ( img.attr("alt").equalsIgnoreCase("cover image") || img.attr("alt").startsWith("WORDsearch") ) {
+				img.remove();
+			} else {
+				String t = img.attr("src");
+				t = t.replace('\\', '/');
+				t = "file:///" + t;
+				img.attr("src", t);
+				btags++;
+			}
+		}
+	    if (btags > 0 ) System.out.println( btags + " images converted.");
+
+	    /*
 		 * Check all links and convert them 
 		 */
 		links = doc.getElementsByTag("a");
