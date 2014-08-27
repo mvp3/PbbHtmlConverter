@@ -1,3 +1,4 @@
+package com.mvp.pbb;
 import java.io.BufferedWriter;
 import java.io.File;
 import java.io.FileWriter;
@@ -17,7 +18,8 @@ import org.jsoup.parser.Tag;
 import org.jsoup.select.Elements;
 
 /**
- * 
+ * This is both the entry class to run a command-line program
+ * and the base class for creating Parser sub-classes.
  */
 
 /* 
@@ -27,12 +29,13 @@ import org.jsoup.select.Elements;
  *
  * Created on July 28, 2014
  */
-public class LogosPrep {
+public class Parser
+{
 
 	/**
 	 * 
 	 */
-	public LogosPrep() 
+	public Parser() 
 	{
 	}
 
@@ -40,43 +43,108 @@ public class LogosPrep {
 	 * @param args
 	 * @throws IOException 
 	 */
-	public static void main(String[] args) throws IOException 
+	public static void main(String[] args) throws Exception 
 	{
-		System.out.println("Starting PBB HTML parser version 1.3");
-    	LogosPrep lp = new LogosPrep();
-	    if ( args[0].endsWith( ".html" ) ) {
-	    	lp.prepareFile( args[0] );
+		System.out.println("Starting PBB parser version 1.4");
+
+		Parser lp = null;
+		String a = args[0];
+		
+	    if ( a.equalsIgnoreCase( "ws" ) ) {
+	    	lp = new Parser();
+	    } else if ( a.equalsIgnoreCase( "trans" ) ) {
+	    	lp = new TranslatedHTMLParser();
+	    } else if ( a.equalsIgnoreCase( "spurgeon" ) ) {
+	    	lp = new SpurgeonParser();
+	    } else if ( a.equalsIgnoreCase( "kindle" ) ) {
+	    	lp = new KindleParser();
+	    } else {
+	    	Parser.invalidArgument();
+	    	return;
+	    }
+
+	    a = args[1];
+	    if ( a == null || lp == null ) Parser.invalidArgument();
+	    
+	    if ( a.endsWith( ".html" ) ) {
+	    	lp.prepareFile( a );
 	      } else {
-	        File d = new File( args[0] );
-	        if (!d.isDirectory()) System.err.println("'" + args[0] + "' is not a directory.");
+	        File d = new File( a );
+	        if (!d.isDirectory()) System.err.println("'" + a + "' is not a directory.");
 	        String[] subs = d.list();
 	        for (int i = 0; i < subs.length; i++) {
 	          if ( subs[i].endsWith( ".html" ) ) lp.prepareFile( d.getPath() + File.separator + subs[i] );
 	        }
 	      }
 	}
+	
+	private static void invalidArgument()
+	{
+    	System.out.println("Invalid argument: com.mvp.pbb.Parser <type> <file/folder>");
+    	System.out.println("    Parser types: ws, trans, spurgeon, kindle");
+    	System.out.println("         Example: com.mvp.pbb.Parser ws \"Meyer's Daily Devotional.html\"");
+	}
 
-	private void prepareFile( String file ) throws IOException
+	void prepareFile( String file ) throws Exception
 	{
 		File input = new File( file );
 		Document doc = Jsoup.parse(input, "UTF-8");
 		
 		/*
-		 * Check for a specific type of tag that marks commentary verse
-		 * For 21st Century Biblical Commentary Series:
-		 * FONT-SIZE: 0.95em; FONT-STYLE: italic; TEXT-ALIGN: center; MARGIN: 15px 10%; LINE-HEIGHT: 1.4em; TEXT-INDENT: 0px
-		 * 
-		 * For Spurgeon (sermon heading):
-		 * MARGIN-BOTTOM: 0px; FONT-SIZE: 1.5em; FONT-WEIGHT: bold; TEXT-ALIGN: center; MARGIN-TOP: 0.5em; LINE-HEIGHT: normal 
+		 * Process Headers H1, H2, and H3
 		 */
-		int btags = 0;
-		Elements ps = null;
-		Elements links = null;
+		convertHeaders(doc);
 		
 		/*
-		 * Process Headers first
+		 * Generic method for special processing
 		 */
-		btags = 0;
+		processDoc(doc);
+		
+		/*
+		 * Process all <SPAN> tags
+		 */
+		convertAllSpans(doc);
+		
+		/*
+		 * Process all <P> tags
+		 */
+		convertAllParagraphs(doc);
+        
+        /*
+         * Process tables
+         */
+        convertAllTables(doc);
+        
+        /*
+         * Check and convert all images
+         */
+        convertAllImages(doc);
+
+        /*
+		 * Check all links and convert them 
+		 */
+        convertAllLinks(doc);
+
+		/*
+		 * Write the modified HTML file back to the file system with a [modified] tag in the file name.
+		 */
+        writeHTMLFile(input, doc);
+	}
+	
+	public void processDoc( Document doc ) throws Exception
+	{
+		// Do nothing.
+	}
+	
+	/**
+	 * Tag all H1 headings and demote headings that match
+	 * "Preface" and "Introduction"
+	 * 
+	 * @param doc
+	 */
+	public void convertHeaders( Document doc ) throws Exception
+	{
+		int tags = 0;
 		Elements headers = doc.getElementsByTag("h1");
 	    for ( Element header : headers )
 	    {
@@ -86,12 +154,12 @@ public class LogosPrep {
 	    	} else {
 		    	header.before( "{{field-on:heading}}" );
 		    	header.after( "{{field-off:heading}}" );
-		    	btags++;
+		    	tags++;
 	    	}
 	    }
-	    if (btags > 0 ) System.out.println( btags + " (H1) headings tagged.");
-		
-        btags = 0;
+	    if (tags > 0 ) System.out.println( tags + " (H1) headings tagged.");
+
+	    tags = 0;
         headers = doc.getElementsByTag("h2");
         for ( Element header : headers )
         {
@@ -101,14 +169,19 @@ public class LogosPrep {
 	    	} else {
 		    	header.before( "{{field-on:heading}}" );
 		    	header.after( "{{field-off:heading}}" );
-	        	btags++;
+	        	tags++;
 	    	}
         }
-        if (btags > 0 ) System.out.println( btags + " (H2) headings tagged.");
-		
-		/*
-		 * Parse raw HTML output from WS
-		 */
+        if (tags > 0 ) System.out.println( tags + " (H2) headings tagged.");
+	}
+	
+	/**
+	 * 
+	 * @param doc
+	 */
+	public void convertAllSpans( Document doc ) throws Exception
+	{
+		int tags = 0;
 		ArrayList<String> missed = new ArrayList<String>();
 		Elements spans = doc.getElementsByTag("span");
 		for ( Element span : spans ) {
@@ -140,19 +213,28 @@ public class LogosPrep {
               String txt = span.attr("value");
               if ( txt != null && txt.length() > 1 ) {
                 span.replaceWith(new TextNode("[[@Bible:" + txt + "]]", ""));
-                btags++;
+                tags++;
               }
 			} else {
 			  String cls = span.attr( "class" );
 			  if ( !missed.contains( cls ) ) missed.add( cls );
 			}
 		}
-		if (btags > 0 ) System.out.println(btags + " commentary tags inserted.");
+		if (tags > 0 ) System.out.println(tags + " commentary tags inserted.");
         if ( missed.size() > 0 ) System.out.println("  <SPAN> classes not handled: " + missed.toString() );
-		
-        btags = 0;
-		missed = new ArrayList<String>();
-		ps = doc.getElementsByTag("p");
+	}
+	
+	/**
+	 * 
+	 * @param doc
+	 * @throws UnsupportedEncodingException 
+	 * @throws MalformedURLException 
+	 */
+	public void convertAllParagraphs( Document doc ) throws Exception
+	{
+        int tags = 0;
+        ArrayList<String> missed = new ArrayList<String>();
+        Elements ps = doc.getElementsByTag("p");
 		for ( Element p : ps ) {
 			if ( p.attr("class").equalsIgnoreCase("booktitle") ) {
 				String txt = p.text();
@@ -162,7 +244,7 @@ public class LogosPrep {
 	            p.replaceWith(e);
 	            e.before("{{field-on:title}}");
 	            e.after("{{field-off:title}}");
-	            btags++;
+	            tags++;
 			} else if ( p.attr("class").equalsIgnoreCase("subtitle") ) {
 				String txt = p.text();
 	            Element e = new Element(Tag.valueOf("h1"), "");
@@ -172,87 +254,97 @@ public class LogosPrep {
 	            p.replaceWith(e);
 	            e.before("{{field-on:subtitle}}");
 	            e.after("{{field-off:subtitle}}");
-	            btags++;
+	            tags++;
 			} else if ( p.attr("class").equalsIgnoreCase("byline") ) {
             	p.attr( "style", "text-align:center;" );
-	            btags++;
+	            tags++;
 			} else if ( p.attr("class").equalsIgnoreCase("author") ) {
 	            p.attr( "id", "author" );
             	p.attr( "style", "text-align:center;font-size:large;font-weight:bold;" );
 	            p.before("{{field-on:author}}");
 	            p.after("{{field-off:author}}");
-	            btags++;
+	            tags++;
 			} else if ( p.attr("class").equalsIgnoreCase("ded1") || p.attr("class").equalsIgnoreCase("ded2") ) {
 	            p.attr( "id", "dedication" );
             	p.attr( "style", "font-style:italic;text-align:center;line-height:0.3;" );
-	            btags++;
+	            tags++;
 			} else if ( p.attr("class").equalsIgnoreCase("copyright") ) {
             	p.attr( "style", "font-size:small;text-align:center;" );
 	            p.before("{{field-on:copyright}}");
 	            p.after("{{field-off:copyright}}");
-	            btags++;
+	            tags++;
 			} else if ( p.attr("class").equalsIgnoreCase("caption") ) {
             	p.attr( "style", "font-size:small;text-align:center;" );
-	            btags++;
+	            tags++;
 			} else if ( p.attr("class").equalsIgnoreCase("center") ) {
             	p.attr( "style", "text-align:center;" );
-	            btags++;
+	            tags++;
 			} else if ( p.attr("class").equalsIgnoreCase("publogo") ) {
             	p.attr( "style", "text-align:center;" );
-	            btags++;
+	            tags++;
             } else if ( p.attr("class").equalsIgnoreCase("wslogo") || 
                         p.attr("class").equalsIgnoreCase("coverimg") ) {
             	p.remove();
-	            btags++;
+	            tags++;
             } else if ( p.attr("class").equalsIgnoreCase("noind") ) {
             	p.attr( "class", "" );
             	p.attr( "style", "" );
-            	btags++;
+            	tags++;
             } else if ( p.attr("class").equalsIgnoreCase("sig")  ||
         				p.attr("class").equalsIgnoreCase("sig2") || 
         				p.attr("class").equalsIgnoreCase("sig3") ) {
             	p.attr( "class", "signature" );
             	p.attr( "style", "text-align:right;font-style:italic;line-height:0.3;" );
-	            btags++;
+	            tags++;
             } else if ( p.attr("class").equalsIgnoreCase("map")  ||
         				p.attr("class").equalsIgnoreCase("mapcenter") || 
         				p.attr("class").equalsIgnoreCase("chart") ) {
             	p.attr( "style", "text-align:center;" );
-	            btags++;
+	            tags++;
             } else if ( p.attr("class").equalsIgnoreCase("hang") ||
         				p.attr("class").equalsIgnoreCase("hang2") ) {
 	        	p.attr( "style", "padding-left:22px; text-indent:-22px;" );
-	        	btags++;
+	        	tags++;
             } else if ( p.attr("class").equalsIgnoreCase("poem1") ||
             			p.attr("class").equalsIgnoreCase("poem2") || 
             			p.attr("class").equalsIgnoreCase("poem3") ||
             			p.attr("class").equalsIgnoreCase("poem4")) {
             	p.attr( "class", "poem" );
             	p.attr( "style", "font-style:italic;text-indent:22px;line-height:0.3;" );
-            	btags++;
+            	tags++;
 			} else {
 				String cls = p.attr( "class" );
 				if ( !missed.contains( cls ) ) missed.add( cls );
 			}
 		}
-		if (btags > 0 ) System.out.println(btags + " paragraphs processed.");
+		if (tags > 0 ) System.out.println(tags + " paragraphs processed.");
         if ( missed.size() > 0 ) System.out.println("  <P> classes not handled: " + missed.toString() );
-        
-        /*
-         * Process tables
-         */
+	}
+	
+	/**
+	 * Make sure that tables are properly formatted
+	 * 
+	 * @param doc
+	 */
+	public void convertAllTables( Document doc ) throws Exception
+	{
 		Elements tables = doc.getElementsByTag("table");
 		if ( tables.size() > 0 ) {
             Element e = new Element(Tag.valueOf("style"), "");
             e.text("tr.nowrap { white-space:nowrap; } td { white-space:nowrap; }");
 			doc.body().before(e);
 		}
-        
+	}
+	/**
+	 * Check for an IMG base URL and insert image base URL into each IMG tag.
+	 * 
+	 * @param doc
+	 */
+	public void convertAllImages( Document doc ) throws Exception
+	{
         /*
          * Check for IMG base URL
          */
-        btags = 0;
-        String imgpath = "";
         /*
         Elements inputs = doc.getElementsByTag("input");
         for ( Element inp : inputs )
@@ -265,8 +357,8 @@ public class LogosPrep {
           }
         }
         */
-        
-        imgpath = "file:///C:/Books/WORDsearch/Library/WelwynCmy/";
+		int tags = 0;
+        String imgpath = "file:///C:/Books/WORDsearch/Library/WelwynCmy/";
         if ( imgpath == null ) {
           System.out.println("Image base path is NULL!");
         } else {
@@ -276,20 +368,27 @@ public class LogosPrep {
             String rel = img.attr( "src" );
             img.attr( "src", imgpath + this.getImgDirWelwyn(rel) + "/" + rel );
             //System.out.println("   IMAGE: " + img.attr( "src" ));
-            btags++;
+            tags++;
           }
-          if (btags > 0 ) System.out.println( btags + " images converted.");
+          if (tags > 0 ) System.out.println( tags + " images converted.");
         }
-
-        /*
-		 * Check all links and convert them 
-		 */
-		links = doc.getElementsByTag("a");
+	}
+	
+	/**
+	 * (1) Remove all HTML links set to Bible references, 
+	 * (2) convert all links of page numbers to PBB page tags,
+	 * (3) remove all "essm" links   
+	 * 
+	 * @param doc
+	 * @throws UnsupportedEncodingException
+	 */
+	public void convertAllLinks( Document doc ) throws Exception 
+	{
+		Elements links = doc.getElementsByTag("a");
 		for (Element link : links) {
 			if (isBibleRef(link.text())) {
 				link.replaceWith(new TextNode(link.text(), ""));
 			} else {
-				String o = link.text();
 				if ( !link.attr("name").isEmpty() ) {
 					String a = link.attr("name"); 
 					if ( a.startsWith("page") ) {
@@ -314,22 +413,29 @@ public class LogosPrep {
 			}
 		}
 		
-		/*
-		 * Write the modified HTML file back to the file system with a [modified] tag in the file name.
-		 * All non-content lines will be excluded. 
-		 */
-		String fn = input.getAbsolutePath();
+	}
+	
+	/**
+	 * Write the modified HTML file back to the file system with a [modified] tag in the file name.
+	 * 
+	 * @param file File in the local file system to write
+	 * @param doc HTML Document object that contains processed HTML
+	 * @throws IOException
+	 */
+	public void writeHTMLFile( File file, Document doc ) throws IOException
+	{
+		String fn = file.getAbsolutePath();
 		File output = new File( fn.substring(0, fn.lastIndexOf('.')) + "_[modified].html");
 		BufferedWriter bw = new BufferedWriter(new FileWriter(output));
 		bw.write(doc.toString());
 		bw.close();
 
 		System.out.println("Converted file: " + output.getName() );
-        System.out.println("Original file size: " + input.length() );
+        System.out.println("Original file size: " + file.length() );
         System.out.println("Converted file size: " + output.length() );
 	}
 	
-	private String getImgDirWelwyn( String img )
+	String getImgDirWelwyn( String img )
 	{
 		String series = "Welwyn";
 		String str = img.substring(img.lastIndexOf('/') + 1);
@@ -355,7 +461,7 @@ public class LogosPrep {
 		return str;
 	}
 
-	private String getLogosRef( String title )
+	public String getLogosRef( String title )
 	{
 		/*
 		 * 	logosres:pbb:8dad9c2cf121434cbc6dfc8fb403b878;art=a$5F0098-makinglightofchrist
@@ -368,7 +474,7 @@ public class LogosPrep {
 		return "logosres:pbb:8dad9c2cf121434cbc6dfc8fb403b878;art=a$5F" + num + name.replaceAll("\\s+", "").replaceAll("\\'+",  "");
 	}
 	
-	private String getBibleRef( String href ) throws MalformedURLException, UnsupportedEncodingException
+	public String getBibleRef( String href ) throws MalformedURLException, UnsupportedEncodingException
 	{
 		try {
 			URL u = new URL( href );
@@ -387,7 +493,7 @@ public class LogosPrep {
 		}
 	}
 	
-	private boolean isBibleRef( String ref )
+	public boolean isBibleRef( String ref )
 	{
 		String[] a = {"genesis", "gen", "ge", "gn", "exodus", "exo", "ex", "exod", "leviticus", "lev", "le", "lv", "numbers", "num", "nu", "nm", "nb", "deuteronomy", "deut", "dt", "joshua", "josh", "jos", "jsh", "judges", "judg", "jdg", "jg", "jdgs", "ruth", "rth", "ru", "1 samuel", "1 sam", "1 sa", "1samuel", "1s", "i sa", "1 sm", "1sa", "i sam", 
 				"1sam", "i samuel", "1st samuel", "first samuel", "2 samuel", "2 sam", "2 sa", "2s", "ii sa", "2 sm", "2sa", "ii sam", "2sam", "ii samuel", "2samuel", "2nd samuel", "second samuel", "1 kings", "1 kgs", "1 ki", "1k", "i kgs", "1kgs", "i ki", "1ki", "i kings", "1kings", "1st kgs", "1st kings", "first kings", "first kgs", "1kin", "2 kings", "2 kgs", "2 ki", "2k", "ii kgs", "2kgs", "ii ki", "2ki", "ii kings", 
@@ -409,7 +515,7 @@ public class LogosPrep {
 		return false;
 	}
 	
-	private class Sermon
+	public class Sermon
 	{
 		String title = null;
 		String venue = null;

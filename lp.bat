@@ -1,1 +1,1 @@
-java -cp \Java\jsoup-1.7.3.jar;.\bin LogosPrep %1
+java -cp \Java\jsoup-1.7.3.jar;.\bin com.mvp.pbb.Parser %1

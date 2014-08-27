@@ -1,1 +1,1 @@
-java -cp .\bin SwitchWS %1
+java -cp .\bin com.mvp.pbb.SwitchWS %1
